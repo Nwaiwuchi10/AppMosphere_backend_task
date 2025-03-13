@@ -4,12 +4,11 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import cors from "cors";
-import config from "config";
+
 import dotenv from "dotenv";
 
 import colors from "colors";
 
-import mongoose from "mongoose";
 import connectDB from "./config/db";
 import authRoutes from "./routes/AuthRoutes";
 import usersRoutes from "./routes/UserRoutes";
