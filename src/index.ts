@@ -83,7 +83,7 @@ io.on("connection", (socket) => {
       }
 
       const existingParticipantIndex = meeting.participants.findIndex(
-        (participant) => participant.userId === userId
+        (participant: any) => participant.userId === userId
       );
 
       if (existingParticipantIndex !== -1) {
@@ -105,41 +105,6 @@ io.on("connection", (socket) => {
       console.error("Error joining room:", error);
     }
   });
-
-  // socket.on("join-room", async ({ meetingId, userId }) => {
-  //   try {
-  //     const meeting = await Meeting.findOne({ meetingId });
-
-  //     if (!meeting) {
-  //       return console.log("Meeting not found");
-  //     }
-
-  //     // Check if the user already exists in participants
-  //     const existingParticipantIndex = meeting.participants.findIndex(
-  //       (participant: any) => participant.userId === userId
-  //     );
-
-  //     if (existingParticipantIndex !== -1) {
-  //       // Update socketId if user already exists
-  //       meeting.participants[existingParticipantIndex].socketId = socket.id;
-  //     } else {
-  //       // Add the user as a new participant
-  //       meeting.participants.push({ socketId: socket.id, userId });
-  //     }
-
-  //     await meeting.save();
-
-  //     socket.join(meeting.roomId);
-  //     io.to(meeting.roomId).emit("user-joined", {
-  //       userId,
-  //       socketId: socket.id,
-  //     });
-
-  //     console.log(`User ${userId} joined meeting ${meetingId}`);
-  //   } catch (error) {
-  //     console.error("Error joining room:", error);
-  //   }
-  // });
 
   socket.on("offer", ({ offer, targetSocketId }) => {
     io.to(targetSocketId).emit("receive-offer", { offer, from: socket.id });
