@@ -2,7 +2,7 @@ import {
   getCallHistoryHandler,
   startCall,
   stopCall,
-} from "../controllers/CallController";
+} from "../controllers/MeetingController";
 import express from "express";
 
 const router = express.Router();

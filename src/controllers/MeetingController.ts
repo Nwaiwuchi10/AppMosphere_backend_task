@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createCall, endCall, getCallHistory } from "../services/Call";
+import { createCall, endCall, getCallHistory } from "../services/Meeting";
 import ShortUniqueId from "short-unique-id";
 
 export const startCall = async (req: Request, res: Response) => {

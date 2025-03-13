@@ -1,4 +1,4 @@
-import Call from "../models/Call";
+import Call from "../models/Meeting";
 
 export const createCall = async (
   meetingId: string,
@@ -26,7 +26,7 @@ export const endCall = async (meetingId: string) => {
 
   call.endedAt = new Date();
   call.duration = (call.endedAt.getTime() - call.startedAt.getTime()) / 1000;
-  call.status = "ended";
+
   return await call.save();
 };
 
