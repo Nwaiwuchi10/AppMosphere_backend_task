@@ -20,31 +20,24 @@ import Meeting from "./models/Meeting";
 dotenv.config();
 
 const uid = new ShortUniqueId({ length: 10 });
-const app = express();
 
-app.use(
-  cors({
-    credentials: true,
-  })
-);
+const port = process.env.PORT;
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Adjust this for production
+    methods: ["GET", "POST"],
+  },
+});
+connectDB();
+app.use(cors());
 app.use(compression());
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 
-// Connect to MongoDB
-connectDB();
-
-const port = process.env.PORT;
-
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Adjust as needed for security
-    methods: ["GET", "POST"],
-  },
-});
 // Handle WebSocket Connections
 
 // Socket.io Signaling for WebRTC
