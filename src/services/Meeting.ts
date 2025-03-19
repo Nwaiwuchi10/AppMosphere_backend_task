@@ -1,3 +1,4 @@
+import Meeting from "../models/Meeting";
 import Call from "../models/Meeting";
 
 export const createCall = async (
@@ -28,6 +29,11 @@ export const endCall = async (meetingId: string) => {
   call.duration = (call.endedAt.getTime() - call.startedAt.getTime()) / 1000;
 
   return await call.save();
+};
+
+export const getAllMeetings = async () => {
+  const meeting = await Meeting.find();
+  return meeting;
 };
 
 export const getCallHistory = async (userId: string) => {

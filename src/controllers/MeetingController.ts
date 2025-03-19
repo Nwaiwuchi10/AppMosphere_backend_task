@@ -1,5 +1,10 @@
 import { Request, Response } from "express";
-import { createCall, endCall, getCallHistory } from "../services/Meeting";
+import {
+  createCall,
+  endCall,
+  getAllMeetings,
+  getCallHistory,
+} from "../services/Meeting";
 import ShortUniqueId from "short-unique-id";
 
 export const startCall = async (req: Request, res: Response) => {
@@ -22,6 +27,14 @@ export const stopCall = async (req: Request, res: Response) => {
     res.json({ message: "Call ended" });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
+  }
+};
+export const getAllMeeting = async (req: Request, res: Response) => {
+  try {
+    const meetings = await getAllMeetings();
+    res.status(201).json(meetings);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 };
 

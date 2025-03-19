@@ -12,6 +12,7 @@ import colors from "colors";
 import connectDB from "./config/db";
 import authRoutes from "./routes/AuthRoutes";
 import usersRoutes from "./routes/UserRoutes";
+import meetingRoutes from "./routes/MeetingRoutes";
 import { v4 as uuidv4 } from "uuid";
 import { Server, Socket } from "socket.io";
 import ShortUniqueId from "short-unique-id";
@@ -36,12 +37,15 @@ app.use(cookieParser());
 app.use(bodyParser.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/meetings", meetingRoutes);
 
 // Handle WebSocket Connections
 
 // Socket.io Signaling for WebRTC
+const userToSocketIdMap = new Map();
+const socketidToUserMap = new Map();
 io.on("connection", (socket) => {
-  console.log(`User Connected: ${socket.id}`);
+  console.log(`Socket Connected: ${socket.id}`);
 
   socket.on("create-meeting", async ({ userId }, callback) => {
     try {
@@ -73,45 +77,154 @@ io.on("connection", (socket) => {
       }
     }
   });
-  ///request to join a meeting
-  socket.on("join-room", async ({ meetingId, userId }) => {
+  socket.on("room:join", async (data, callback) => {
     try {
+      const { meetingId, userId } = data;
+
+      if (!userId) {
+        console.error("User ID is missing in room:join event");
+        return callback({ success: false, error: "Invalid user data" });
+      }
+
+      // Find the meeting by ID
       const meeting = await Meeting.findOne({ meetingId });
 
       if (!meeting) {
-        return console.log("Meeting not found");
+        socket.emit("error", "Meeting not found");
+        return;
       }
 
-      const existingParticipantIndex = meeting.participants.findIndex(
-        (participant: any) => participant.userId === userId
+      // Check if user is already in the meeting
+      const existingParticipant = meeting.participants.find(
+        (participant) => participant.userId === userId
       );
 
-      if (existingParticipantIndex !== -1) {
-        meeting.participants[existingParticipantIndex].socketId = socket.id;
-      } else {
-        meeting.participants.push({ socketId: socket.id, userId });
+      if (!existingParticipant) {
+        const participant = { socketId: socket.id, userId };
+        meeting.participants.push(participant);
+        await meeting.save();
       }
 
-      await meeting.save();
+      // Ensure the socket joins the correct meeting room
+      socket.join(meetingId);
 
-      socket.join(meeting.roomId);
-
-      const participants = meeting.participants.map((p) => p.userId);
-
-      io.to(meeting.roomId).emit("update-participants", participants);
+      // Map userId to socketId for quick reference
+      userToSocketIdMap.set(userId, socket.id);
+      socketidToUserMap.set(socket.id, userId);
 
       console.log(`User ${userId} joined meeting ${meetingId}`);
+
+      // Notify all participants about the new user
+      io.to(meetingId).emit("user:joined", {
+        meetingId,
+        userId,
+        participants: meeting.participants,
+      });
+
+      if (callback) {
+        callback({ success: true, participants: meeting.participants });
+      }
     } catch (error) {
-      console.error("Error joining room:", error);
+      console.error("Error in room:join:", error);
+      if (callback) {
+        callback({ success: false, error: "Failed to join meeting" });
+      }
     }
   });
 
-  socket.on("offer", ({ offer, targetSocketId }) => {
-    io.to(targetSocketId).emit("receive-offer", { offer, from: socket.id });
+  socket.on("rooms:joinss", async (data, callback) => {
+    try {
+      const { meetingId, userId } = data;
+
+      // Find the meeting by ID
+      const meeting = await Meeting.findOne({ meetingId });
+
+      if (!meeting) {
+        socket.emit("error", "Meeting not found");
+        return;
+      }
+
+      // Check if user is already in the meeting
+      const existingParticipant = meeting.participants.find(
+        (participant) => participant.userId === userId
+      );
+
+      if (!existingParticipant) {
+        // Add the new participant
+        const participant = { socketId: socket.id, userId };
+        meeting.participants.push(participant);
+        await meeting.save();
+      }
+
+      // Ensure the socket joins the correct meeting room
+      socket.join(meetingId);
+
+      // Map userId to socketId for quick reference
+      userToSocketIdMap.set(userId, socket.id);
+      socketidToUserMap.set(socket.id, userId);
+
+      // Notify all participants about the new user
+      io.to(meetingId).emit("user:joined", meeting.participants);
+
+      // Send a response to the user who joined
+      if (callback) {
+        callback({ success: true, participants: meeting.participants });
+      }
+    } catch (error) {
+      console.error("Error in room:join:", error);
+      if (callback) {
+        callback({ success: false, error: "Failed to join meeting" });
+      }
+    }
   });
 
-  socket.on("answer", ({ answer, targetSocketId }) => {
-    io.to(targetSocketId).emit("receive-answer", { answer, from: socket.id });
+  socket.on("ruger:joiny", async (data) => {
+    const { meetingId, userId } = data;
+    const meeting = await Meeting.findOne({ meetingId });
+    if (!meeting) {
+      socket.emit("error", "Meeting not found");
+      return;
+    }
+    const isParticipant = meeting.participants.some(
+      (participant) => participant.userId === userId
+    );
+
+    userToSocketIdMap.set(userId, socket.id);
+    socketidToUserMap.set(socket.id, userId);
+    if (!isParticipant) {
+      const participant = { socketId: socket.id, userId };
+      meeting.participants.push(participant);
+      await meeting.save();
+
+      socket.join(meetingId);
+      io.to(meetingId).emit("user:joined", meeting.participants, {
+        userId,
+        id: socket.id,
+      });
+
+      socket.join(meetingId);
+    }
+
+    io.to(socket.id).emit("room:join", data);
+  });
+
+  ///request to join a meeting
+  socket.on("user:call", ({ to, offer }) => {
+    io.to(to).emit("incomming:call", { from: socket.id, offer });
+  });
+
+  socket.on("call:accepted", ({ to, ans }) => {
+    io.to(to).emit("call:accepted", { from: socket.id, ans });
+  });
+
+  socket.on("peer:nego:needed", ({ to, offer }) => {
+    console.log("peer:nego:needed", offer);
+    io.to(to).emit("peer:nego:needed", { from: socket.id, offer });
+  });
+
+  socket.on("peer:nego:done", ({ to, ans }) => {
+    console.log("peer:nego:done", ans);
+    io.to(to).emit("peer:nego:final", { from: socket.id, ans });
   });
 
   socket.on("ice-candidate", ({ candidate, targetSocketId }) => {
@@ -122,20 +235,28 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", async () => {
-    await Meeting.updateMany(
-      {},
-      { $pull: { participants: { socketId: socket.id } } }
+    const meeting = await Meeting.findOneAndUpdate(
+      { "participants.socketId": socket.id },
+      { $pull: { participants: { socketId: socket.id } } },
+      { new: true }
     );
+
+    if (meeting) {
+      io.to(meeting.meetingId).emit(
+        "update-participants",
+        meeting.participants
+      );
+    }
+
     console.log(`User Disconnected: ${socket.id}`);
   });
-
   socket.on("leave-room", async ({ meetingId, userId }) => {
     await Meeting.updateOne(
       { meetingId },
-      { $pull: { participants: { socketId: socket.id } } }
+      { $pull: { participants: { userId } } }
     );
     socket.leave(meetingId);
-    console.log(`User ${userId} left the room: ${meetingId}`);
+    socket.broadcast.to(meetingId).emit("user-left", { userId });
   });
 });
 server.listen(port, () => {
